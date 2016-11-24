@@ -79,6 +79,7 @@ function initShaders() {
 	
 	shaderProgram.materialShininessUniform = gl.getUniformLocation(shaderProgram, "uMaterialShininess");
 
+	shaderProgram.seed = gl.getUniformLocation(shaderProgram, "uSeed");
 }
 
 var mvMatrix = mat4.create();
@@ -175,7 +176,7 @@ function render() {
 	
 	setMatrixUniforms();
 	
-	var vMatrix = lookAt([cameraX, cameraY, cameraZ], [cameraX, cameraY, cameraZ-1.0]);
+	var vMatrix = lookAt([cameraX, cameraY, cameraZ], [cameraX + (Math.sin(cameraRY)), cameraY, cameraZ - (Math.cos(cameraRY))]);
 	
 	gl.uniformMatrix4fv(shaderProgram.vMatrixUniform, false, vMatrix);
 	
@@ -202,6 +203,7 @@ function render() {
 	gl.uniform3f(shaderProgram.materialDiffuseColorUniform, 0.0, 0.8, 0.1);
 	gl.uniform3f(shaderProgram.materialSpecularColorUniform, 0.8, 0.8, 0.8);
 	gl.uniform1f(shaderProgram.materialShininessUniform, 20.0);
+	gl.uniform1i(shaderProgram.seed, 1);
 	
 	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, planeVertexIndexBuffer);
 	gl.drawElements(gl.TRIANGLES, planeVertexIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
@@ -211,19 +213,35 @@ function tick() {
 	requestAnimFrame(tick);
 	
 	if (movingForward) {
-		cameraZ++;
-	}
-	
-	if (movingBackward) {
 		cameraZ--;
 	}
 	
+	if (movingBackward) {
+		cameraZ++;
+	}
+	
 	if (movingRight) {
-		cameraX--;
+		cameraX++;
 	}
 	
 	if (movingLeft) {
-		cameraX++;
+		cameraX--;
+	}
+	
+	if(lookingUp) {
+		cameraRX+=0.1;
+	}
+	
+	if(lookingDown) {
+		cameraRX-=0.1;
+	}
+	
+	if(lookingRight) {
+		cameraRY+=0.1;
+	}
+	
+	if(lookingLeft) {
+		cameraRY-=0.1;
 	}
 	
 	render();
@@ -246,10 +264,18 @@ var cameraX = 0;
 var cameraY = 0;
 var cameraZ = 0;
 
+var cameraRX = 0;
+var cameraRY = 0;
+var cameraRZ = 0;
+
 var movingForward = false;
 var movingBackward = false;
 var movingRight = false;
 var movingLeft = false;
+var lookingUp = false;
+var lookingDown = false;
+var lookingRight = false;
+var lookingLeft = false;
 
 function initKeyHandler() {
 	document.body.addEventListener("keydown", function(keyEvent) {
@@ -273,7 +299,21 @@ function initKeyHandler() {
 				movingLeft = true;
 				break;
 				
+			case KeyBinds.cameraUp:
+				lookingUp = true;
+				break;
+	
+			case KeyBinds.cameraDown:
+				lookingDown = true;
+				break;
 			
+			case KeyBinds.cameraRight:
+				lookingRight = true;
+				break;
+				
+			case KeyBinds.cameraLeft:
+				lookingLeft = true;
+				break;
 		}
 		
 	});
@@ -298,6 +338,22 @@ function initKeyHandler() {
 			case KeyBinds.left:
 				movingLeft = false;
 				break;
+				
+			case KeyBinds.cameraUp:
+				lookingUp = false;
+				break;
+	
+			case KeyBinds.cameraDown:
+				lookingDown = false;
+				break;
+			
+			case KeyBinds.cameraRight:
+				lookingRight = false;
+				break;
+				
+			case KeyBinds.cameraLeft:
+				lookingLeft = false;
+				break;
 		}
 		
 	});
@@ -316,10 +372,13 @@ function lookAt(position, target) {
 	vec3.cross(camX, camZ, up);
 	vec3.cross(camY, camX, camZ);
 	
-	var camera = mat4.fromValues(camX[0], camX[1], camX[2], 0.0,
-								 camY[0], camY[1], camY[2], 0.0,
-								 camZ[0], camZ[1], camZ[2], 0.0,
-								 position[0],  position[1],  position[2],  1.0);
+	var camera = mat4.create();
+	mat4.translate(camera, camera, [-position[0], -position[1], -position[2]]);
+	var cameraAxis = mat4.fromValues(camX[0], camX[1], camX[2], 0.0,
+									 camY[0], camY[1], camY[2], 0.0,
+									 camZ[0], camZ[1], camZ[2], 0.0,
+									 0.0,     0.0,     0.0,     1.0);							 
+	mat4.mul(camera, camera, cameraAxis);
 	
 	return camera;
 }

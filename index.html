@@ -45,7 +45,7 @@
 				float specularFactor = max(dot(R, V), 0.0);
 				vec3 specularColor = clamp(pow(specularFactor, uMaterialShininess) * uMaterialSpecularColor, 0.0, 1.0);
 				
-				gl_FragColor = vec4(height * vec3(0.7, 0.7, 0.7), 1.0) * vec4(uAmbientColor + diffuseColor + specularColor, 1.0);
+				gl_FragColor = vec4((height * vec3(0.7, 0.7, 0.7), 1.0) + vec4(0.05, 0.05, 0.05, 0.05)) * vec4(uAmbientColor + diffuseColor + specularColor, 1.0);
 			}
 			
 		</script>
@@ -60,16 +60,58 @@
 			uniform mat4 uVMatrix;
 			uniform mat4 uPMatrix;
 			uniform mat3 uNMatrix;
+			uniform int uSeed;
 			
 			varying vec3 vNormal;
 			varying vec4 vPosition;
 			varying float height;
 			
+			float random(float value, int seed) {
+				float random = sin(value+float(seed)) * 1000.0;
+				return 360.0*(random - floor(random));
+			}
+			
+			float noise2D(float x, float y, float frequency, int seed) {
+			
+				x = abs(x);
+				y = abs(y);
+			
+				float minX = floor(x/frequency) * frequency;
+				float minY = floor(y/frequency) * frequency;
+				float maxX = minX + frequency;
+				float maxY = minY + frequency;
+				
+				vec2 gradient1 = normalize( vec2(cos(random(minX + 1000.0*maxY, seed)), sin(random(minX + 1000.0*maxY, seed))) );
+				vec2 gradient2 = normalize( vec2(cos(random(maxX + 1000.0*maxY, seed)), sin(random(maxX + 1000.0*maxY, seed))) );
+				vec2 gradient3 = normalize( vec2(cos(random(maxX + 1000.0*minY, seed)), sin(random(maxX + 1000.0*minY, seed))) );
+				vec2 gradient4 = normalize( vec2(cos(random(minX + 1000.0*minY, seed)), sin(random(minX + 1000.0*minY, seed))) );
+				
+				vec2 distance1 = normalize(vec2(x, y) - vec2(minX, maxY));
+				vec2 distance2 = normalize(vec2(x, y) - vec2(maxX, maxY));
+				vec2 distance3 = normalize(vec2(x, y) - vec2(maxX, minY));
+				vec2 distance4 = normalize(vec2(x, y) - vec2(minX, minY));
+				
+				float intensity1 = dot(gradient1, distance1);
+				float intensity2 = dot(gradient2, distance2);
+				float intensity3 = dot(gradient3, distance3);
+				float intensity4 = dot(gradient4, distance4);
+				
+				float interp1 = mix(intensity1, intensity2, (x-minX) / (maxX-minX));
+				float interp2 = mix(intensity3, intensity4, (x-minX) / (maxX-minX));
+				float interp3 = mix(interp1, interp2, (y-minY) / (maxY-minY));
+				
+				return interp3;
+			}
+			
 			void main(void) {
+			
 				vPosition = uMVMatrix * vec4(aVertexPosition, 1.0);
-				vPosition = vPosition + vec4(0.0, aRandom*10.0, 0.0, 1.0);
+				
+				height = noise2D(vPosition.x, vPosition.z, 50.0, uSeed);
+				
+				vPosition = vPosition + vec4(0.0, height*10.0, 0.0, 1.0);
+				
 				vNormal = normalize(uNMatrix * aVertexNormal);
-				height = aRandom;
 				
 				gl_Position = uPMatrix * uVMatrix * vPosition;
 			}

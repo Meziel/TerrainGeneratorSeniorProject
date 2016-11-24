@@ -3087,7 +3087,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	 mat4.rotateZ = glMatrix.USE_SIMD ? mat4.SIMD.rotateZ : mat4.scalar.rotateZ;
 
 	/**
-	 * Creates a matrix from a vector translation
+	 * Creates a matrix from a vector 
 	 * This is equivalent to (but much faster than):
 	 *
 	 *     mat4.identity(dest);
