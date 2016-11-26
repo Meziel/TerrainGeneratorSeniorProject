@@ -78,8 +78,7 @@ function initShaders() {
 	shaderProgram.materialSpecularColorUniform = gl.getUniformLocation(shaderProgram, "uMaterialSpecularColor");
 	
 	shaderProgram.materialShininessUniform = gl.getUniformLocation(shaderProgram, "uMaterialShininess");
-
-	shaderProgram.seed = gl.getUniformLocation(shaderProgram, "uSeed");
+	shaderProgram.amplitudeUniform = gl.getUniformLocation(shaderProgram, "uAmplitude");
 }
 
 var mvMatrix = mat4.create();
@@ -98,32 +97,195 @@ var planeVertexPositionBuffer;
 var planeVertexNormalBuffer;
 var planeVertexIndexBuffer;
 
+function random(value, seed) {
+	var random = Math.sin(value+seed) * 1000.0;
+	return random - Math.floor(random);
+}			
+
+/*
+function noise(x, y, frequency, seed) {
+	
+	var minX = parseInt(Math.floor(x/frequency) * frequency);
+	var minY = parseInt(Math.floor(y/frequency) * frequency);
+	var maxX = parseInt(minX + frequency);
+	var maxY = parseInt(minY + frequency);
+	
+	var random1 = random(minX*maxY*maxY*1034532.234, seed);
+	var random2 = random(maxX*maxY*minY*1034532.234, seed);
+	var random3 = random(maxX*minY*minY*1034532.234, seed);
+	var random4 = random(minX*minY*maxY*1034532.234, seed);
+
+	var gradient1 = [random1, random1];
+	var gradient2 = [random2, random2];
+	var gradient3 = [random3, random3];
+	var gradient4 = [random4, random4];
+	
+	var distance1 = [(x-minX)/(maxX-minX), (y-maxY)/(maxY-minY)];
+	var distance2 = [(x-maxX)/(maxX-minX), (y-maxY)/(maxY-minY)];
+	var distance3 = [(x-maxX)/(maxX-minX), (y-minY)/(maxY-minY)];
+	var distance4 = [(x-minX)/(maxX-minX), (y-minY)/(maxY-minY)];
+	
+	var dotGradient1 = gradient1[0]*distance1[0] + gradient1[1]*distance1[1];
+	var dotGradient2 = gradient2[0]*distance2[0] + gradient2[1]*distance2[1];
+	var dotGradient3 = gradient3[0]*distance3[0] + gradient3[1]*distance3[1];
+	var dotGradient4 = gradient4[0]*distance4[0] + gradient4[1]*distance4[1];
+	
+	var lerp1 = (((x-minX)/frequency)*dotGradient1) + ((1.0 - ((x-minX)/frequency))*dotGradient2);
+	var lerp2 = (((x-minX)/frequency)*dotGradient3) + ((1.0 - ((x-minX)/frequency))*dotGradient4);
+	var lerp3 = (((y-minY)/frequency)*lerp1) + ((1.0 - ((y-minY)/frequency))*lerp2);
+	
+	return lerp2;
+}
+*/
+
+// Function to linearly interpolate between a0 and a1
+ // Weight w should be in the range [0.0, 1.0]
+ function lerp(a0, a1, w) {
+     return (1.0 - w)*a0 + w*a1;
+ }
+ 
+ // Computes the dot product of the distance and gradient vectors.
+ function dotGridGradient(ix, iy, x, y) {
+
+     // Compute the distance vector
+     var dx = x - ix;
+     var dy = y - iy;
+ 
+     // Compute the dot-product
+     return (dx*gradients[iy][ix][0] + dy*gradients[iy][ix][1]);
+ }
+ 
+ // Compute Perlin noise at coordinates x, y
+ function noise(x, y, frequency, seed) {
+ 
+	x = Math.abs(x) / 20;
+	y = Math.abs(y) / 20;
+ 
+    // Determine grid cell coordinates
+	var x0 = Math.floor(x);
+    var x1 = x0 + 1;
+    var y0 = Math.floor(y);
+    var y1 = (y0 + 1);
+ 
+    // Determine interpolation weights
+    // Could also use higher order polynomial/s-curve here
+    var sx = x - x0;
+    var sy = y - y0;
+ 
+     // Interpolate between grid point gradients
+     var n0, n1, ix0, ix1, value;
+     n0 = dotGridGradient(x0, y0, x, y);
+     n1 = dotGridGradient(x1, y0, x, y);
+     ix0 = lerp(n0, n1, sx);
+     n0 = dotGridGradient(x0, y1, x, y);
+     n1 = dotGridGradient(x1, y1, x, y);
+     ix1 = lerp(n0, n1, sx);
+     value = lerp(ix0, ix1, sy);
+ 
+     return value;
+	 //return 0.0;
+ }
+
+var amplitude = 20;
+ 
+ 
+function normalPlane(p1, p2, p3) {
+	
+	p1[1] *= amplitude;
+	p2[1] *= amplitude;
+	p3[1] *= amplitude;
+	
+	var normal = vec3.create();
+	var l1 = vec3.create();
+	var l2 = vec3.create();
+	
+	vec3.subtract(l1, p1, p2);
+	vec3.subtract(l2, p3, p2);
+	vec3.cross(normal, l1, l2);
+	
+	return normal;
+}
+
+var gradients = [];
+
+function createGradients(frequency) {
+	for(var i=0; i<frequency+1; i++) {
+		gradients[i] = [];
+		for(var j=0; j<frequency+1; j++) {
+			gradients[i][j] = [];
+			gradients[i][j][0] = Math.random();
+			gradients[i][j][1] = Math.random();
+		}
+	}
+}
+
 function createPlane(rows, cols) {
+
+	var frequency = 1000;
+	var seed = 100;
+
+	createGradients(frequency);
 
 	var vertices = [];
 	var normals = [];
+	var randoms = [];
 	var indices = [];
-	var random = [];
 
 	//create vertices
-	for(var y=0; y<=rows; y++) {
-		for(var x=0; x<=cols; x++) {
-			vertices.push(x-(cols/2), y-(rows/2), 0);
-			normals.push(0.0, 1.0, 0.0);
-			random.push(Math.random());
-		}
-	}
-	
-	//create indices
+	var count=0;
 	for(var y=0; y<rows; y++) {
 		for(var x=0; x<cols; x++) {
-			indices.push(y*(cols+1) + x);
-			indices.push(y*(cols+1) + (x+1));
-			indices.push((y+1)*(cols+1) + x);
 			
-			indices.push(y*(cols+1) + (x+1));
-			indices.push((y+1)*(cols+1) + x);
-			indices.push((y+1)*(cols+1) + (x+1))
+			var random1;
+			var random2;
+			var random3;
+			var normal;
+			
+			random1 = noise(x+1, y, frequency, seed);
+			random2 = noise(x, y, frequency, seed);
+			random3 = noise(x, y+1, frequency, seed);
+	
+			vertices.push((x+1)-(cols/2), 0.0, y-(rows/2));
+			vertices.push(x-(cols/2), 0.0, y-(rows/2));
+			vertices.push(x-(cols/2), 0.0, (y+1)-(rows/2));
+			
+			randoms.push(random1);
+			randoms.push(random2);
+			randoms.push(random3);
+			
+			normal = normalPlane([x+1, random2, y], [x, random1, y], [x, random3, y+1]);
+			
+			for(var i = 0; i<3; i++) {
+				normals.push(normal[0], normal[1], normal[2]);
+			}
+			
+			//second set of triangles
+			
+			random1 = noise(x+1, y, frequency, seed);
+			random2 = noise(x, y+1, frequency, seed);
+			random3 = noise(x+1, y+1, frequency, seed);
+			
+			vertices.push((x+1)-(cols/2), 0.0, y-(rows/2));
+			vertices.push(x-(cols/2), 0.0, (y+1)-(rows/2));
+			vertices.push((x+1)-(cols/2), 0.0, (y+1)-(rows/2));
+		
+			randoms.push(random1);
+			randoms.push(random2);
+			randoms.push(random3);
+	
+			normal = normalPlane([x+1, random1, y], [x, random2, y+1], [x+1, random3, y+1]);
+			
+			for(var i = 0; i<3; i++) {
+				normals.push(normal[0], normal[1], normal[2]);
+			}
+			
+			//create indices
+			indices.push(count++);
+			indices.push(count++);
+			indices.push(count++);
+			indices.push(count++);
+			indices.push(count++);
+			indices.push(count++);
 		}
 	}
 
@@ -144,7 +306,7 @@ function createPlane(rows, cols) {
 	//random positions
 	planeRandomBuffer = gl.createBuffer();
 	gl.bindBuffer(gl.ARRAY_BUFFER, planeRandomBuffer);
-	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(random), gl.STATIC_DRAW);
+	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(randoms), gl.STATIC_DRAW);
 	planeRandomBuffer.itemSize = 1;
 	planeRandomBuffer.numItems = vertices.length/planeRandomBuffer.itemSize;
 	
@@ -171,7 +333,6 @@ function render() {
 	//create MV matrix
 	mat4.identity(mvMatrix);
 	mat4.translate(mvMatrix, mvMatrix, [0, -10, -40]);
-	mat4.rotate(mvMatrix, mvMatrix, glMatrix.toRadian(90), [1, 0, 0]);
 	mat4.scale(mvMatrix, mvMatrix, [3.0, 3.0, 3.0]);
 	
 	setMatrixUniforms();
@@ -198,16 +359,19 @@ function render() {
 	gl.vertexAttribPointer(shaderProgram.randomAttribute, planeRandomBuffer.itemSize, gl.FLOAT, false, 0, 0);
 	
 	//set uniforms
-	gl.uniform3f(shaderProgram.pointLightingLocationUniform, 0, 1, 0);
-    gl.uniform3f(shaderProgram.ambientColorUniform, 0.3, 0.3, 0.3);
+	gl.uniform3f(shaderProgram.pointLightingLocationUniform, Math.cos(sunRotation), Math.sin(sunRotation), 0);
+	sunRotation -= 0.001;
+    gl.uniform3f(shaderProgram.ambientColorUniform, 0.2, 0.2, 0.2);
 	gl.uniform3f(shaderProgram.materialDiffuseColorUniform, 0.0, 0.8, 0.1);
 	gl.uniform3f(shaderProgram.materialSpecularColorUniform, 0.8, 0.8, 0.8);
 	gl.uniform1f(shaderProgram.materialShininessUniform, 20.0);
-	gl.uniform1i(shaderProgram.seed, 1);
+	gl.uniform1f(shaderProgram.amplitudeUniform, amplitude);
 	
 	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, planeVertexIndexBuffer);
 	gl.drawElements(gl.TRIANGLES, planeVertexIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
 }
+
+var sunRotation = 0.0;
 
 function tick() {
 	requestAnimFrame(tick);
@@ -373,12 +537,16 @@ function lookAt(position, target) {
 	vec3.cross(camY, camX, camZ);
 	
 	var camera = mat4.create();
-	mat4.translate(camera, camera, [-position[0], -position[1], -position[2]]);
-	var cameraAxis = mat4.fromValues(camX[0], camX[1], camX[2], 0.0,
-									 camY[0], camY[1], camY[2], 0.0,
-									 camZ[0], camZ[1], camZ[2], 0.0,
-									 0.0,     0.0,     0.0,     1.0);							 
-	mat4.mul(camera, camera, cameraAxis);
+	//mat4.rotate(camera, camera, glMatrix.toRadian(90), [1, 0, 0]);
+	mat4.translate(camera, camera, [-position[0], -position[1], -position[2]]);+
+	mat4.rotate(camera, camera, glMatrix.toRadian(cameraRX*-5.0), [1, 0, 0]);
+	mat4.rotate(camera, camera, glMatrix.toRadian(cameraRY*20.0), [0, 1, 0]);
+	mat4.rotate(camera, camera, glMatrix.toRadian(cameraRZ*-20.0), [0, 0, 1]);
+	//var cameraAxis = mat4.fromValues(camX[0], camX[1], camX[2], 0.0,
+	//								 camY[0], camY[1], camY[2], 0.0,
+	//								 camZ[0], camZ[1], camZ[2], 0.0,
+	//								 0.0,     0.0,     0.0,     1.0);							 
+	//mat4.mul(camera, camera, cameraAxis);
 	
 	return camera;
 }
