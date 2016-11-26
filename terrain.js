@@ -98,97 +98,50 @@ var planeVertexNormalBuffer;
 var planeVertexIndexBuffer;
 
 function random(value, seed) {
-	var random = Math.sin(value+seed) * 1000.0;
+	var random = (Math.sin(value+seed)*.5+.5) * 1000.0;
 	return random - Math.floor(random);
 }			
 
-/*
+function lerp(a0, a1, w) {
+	return (1.0 - w)*a0 + w*a1;
+}
+
 function noise(x, y, frequency, seed) {
 	
-	var minX = parseInt(Math.floor(x/frequency) * frequency);
-	var minY = parseInt(Math.floor(y/frequency) * frequency);
-	var maxX = parseInt(minX + frequency);
-	var maxY = parseInt(minY + frequency);
+	var minX = Math.floor(x/frequency) * frequency;
+	var minY = Math.floor(y/frequency) * frequency;
+	var maxX = minX + frequency;
+	var maxY = minY + frequency;
 	
-	var random1 = random(minX*maxY*maxY*1034532.234, seed);
-	var random2 = random(maxX*maxY*minY*1034532.234, seed);
-	var random3 = random(maxX*minY*minY*1034532.234, seed);
-	var random4 = random(minX*minY*maxY*1034532.234, seed);
+	var random1 = random(minX+(minY*1000), seed);
+	var random2 = random(maxX+(minY*1000), seed);
+	var random3 = random(minX+(maxY*1000), seed);
+	var random4 = random(maxX+(maxY*1000), seed);
 
 	var gradient1 = [random1, random1];
 	var gradient2 = [random2, random2];
 	var gradient3 = [random3, random3];
 	var gradient4 = [random4, random4];
 	
-	var distance1 = [(x-minX)/(maxX-minX), (y-maxY)/(maxY-minY)];
-	var distance2 = [(x-maxX)/(maxX-minX), (y-maxY)/(maxY-minY)];
-	var distance3 = [(x-maxX)/(maxX-minX), (y-minY)/(maxY-minY)];
-	var distance4 = [(x-minX)/(maxX-minX), (y-minY)/(maxY-minY)];
+	var distance1 = [(x-minX)/frequency, (y-minY)/frequency];
+	var distance2 = [(x-maxX)/frequency, (y-minY)/frequency];
+	var distance3 = [(x-minX)/frequency, (y-maxY)/frequency];
+	var distance4 = [(x-maxX)/frequency, (y-maxY)/frequency];
 	
 	var dotGradient1 = gradient1[0]*distance1[0] + gradient1[1]*distance1[1];
 	var dotGradient2 = gradient2[0]*distance2[0] + gradient2[1]*distance2[1];
 	var dotGradient3 = gradient3[0]*distance3[0] + gradient3[1]*distance3[1];
 	var dotGradient4 = gradient4[0]*distance4[0] + gradient4[1]*distance4[1];
 	
-	var lerp1 = (((x-minX)/frequency)*dotGradient1) + ((1.0 - ((x-minX)/frequency))*dotGradient2);
-	var lerp2 = (((x-minX)/frequency)*dotGradient3) + ((1.0 - ((x-minX)/frequency))*dotGradient4);
-	var lerp3 = (((y-minY)/frequency)*lerp1) + ((1.0 - ((y-minY)/frequency))*lerp2);
+	var lerp1 = lerp(dotGradient1, dotGradient2, (x-minX)/frequency);
+	var lerp2 = lerp(dotGradient3, dotGradient4, (x-minX)/frequency);
+	var lerp3 = lerp(lerp1, lerp2, (y-minY)/frequency);
 	
-	return lerp2;
+	return lerp3;
 }
-*/
+ 
 
-// Function to linearly interpolate between a0 and a1
- // Weight w should be in the range [0.0, 1.0]
- function lerp(a0, a1, w) {
-     return (1.0 - w)*a0 + w*a1;
- }
- 
- // Computes the dot product of the distance and gradient vectors.
- function dotGridGradient(ix, iy, x, y) {
-
-     // Compute the distance vector
-     var dx = x - ix;
-     var dy = y - iy;
- 
-     // Compute the dot-product
-     return (dx*gradients[iy][ix][0] + dy*gradients[iy][ix][1]);
- }
- 
- // Compute Perlin noise at coordinates x, y
- function noise(x, y, frequency, seed) {
- 
-	x = Math.abs(x) / 20;
-	y = Math.abs(y) / 20;
- 
-    // Determine grid cell coordinates
-	var x0 = Math.floor(x);
-    var x1 = x0 + 1;
-    var y0 = Math.floor(y);
-    var y1 = (y0 + 1);
- 
-    // Determine interpolation weights
-    // Could also use higher order polynomial/s-curve here
-    var sx = x - x0;
-    var sy = y - y0;
- 
-     // Interpolate between grid point gradients
-     var n0, n1, ix0, ix1, value;
-     n0 = dotGridGradient(x0, y0, x, y);
-     n1 = dotGridGradient(x1, y0, x, y);
-     ix0 = lerp(n0, n1, sx);
-     n0 = dotGridGradient(x0, y1, x, y);
-     n1 = dotGridGradient(x1, y1, x, y);
-     ix1 = lerp(n0, n1, sx);
-     value = lerp(ix0, ix1, sy);
- 
-     return value;
-	 //return 0.0;
- }
-
-var amplitude = 20;
- 
- 
+var amplitude = 20; 
 function normalPlane(p1, p2, p3) {
 	
 	p1[1] *= amplitude;
@@ -208,23 +161,10 @@ function normalPlane(p1, p2, p3) {
 
 var gradients = [];
 
-function createGradients(frequency) {
-	for(var i=0; i<frequency+1; i++) {
-		gradients[i] = [];
-		for(var j=0; j<frequency+1; j++) {
-			gradients[i][j] = [];
-			gradients[i][j][0] = Math.random();
-			gradients[i][j][1] = Math.random();
-		}
-	}
-}
-
 function createPlane(rows, cols) {
 
-	var frequency = 1000;
+	var frequency = 10;
 	var seed = 100;
-
-	createGradients(frequency);
 
 	var vertices = [];
 	var normals = [];
