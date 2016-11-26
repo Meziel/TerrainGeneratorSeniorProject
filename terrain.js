@@ -1,5 +1,29 @@
 var gl;
 
+var Options = function() {
+	this.rows = 100;
+	this.cols = 100;
+	this.amplitude = 20;
+	this.frequency = 10;
+	this.scale = 0.5;
+	this.seed = 1.0;
+	this.recalculate = function() {
+	  createPlane(this.rows, this.cols, this.frequency, this.seed);
+	}
+};
+var options = new Options();
+
+window.onload = function() {
+	var gui = new dat.GUI();
+	gui.add(options, 'rows', 0, 200);
+	gui.add(options, 'cols', 0, 200);
+	gui.add(options, 'frequency', 0, 100);
+	gui.add(options, 'seed', 0, 999999);
+	gui.add(options, 'recalculate');
+	gui.add(options, 'amplitude', 0, 500);
+	gui.add(options, 'scale', 0, 10);
+};
+
 function initGL(canvas) {
 	try {
 		gl = canvas.getContext("experimental-webgl");
@@ -106,6 +130,17 @@ function lerp(a0, a1, w) {
 	return (1.0 - w)*a0 + w*a1;
 }
 
+function clamp(num, min, max) {
+  return num <= min ? min : num >= max ? max : num;
+}
+
+function smoothstep(edge0, edge1, x) {
+    // Scale, bias and saturate x to 0..1 range
+    x = clamp((x - edge0)/(edge1 - edge0), 0.0, 1.0); 
+    // Evaluate polynomial
+    return x*x*(3 - 2*x);
+}
+
 function noise(x, y, frequency, seed) {
 	
 	var minX = Math.floor(x/frequency) * frequency;
@@ -133,20 +168,22 @@ function noise(x, y, frequency, seed) {
 	var dotGradient3 = gradient3[0]*distance3[0] + gradient3[1]*distance3[1];
 	var dotGradient4 = gradient4[0]*distance4[0] + gradient4[1]*distance4[1];
 	
-	var lerp1 = lerp(dotGradient1, dotGradient2, (x-minX)/frequency);
-	var lerp2 = lerp(dotGradient3, dotGradient4, (x-minX)/frequency);
-	var lerp3 = lerp(lerp1, lerp2, (y-minY)/frequency);
+	//var lerp1 = lerp(dotGradient1, dotGradient2, (x-minX)/frequency);
+	//var lerp2 = lerp(dotGradient3, dotGradient4, (x-minX)/frequency);
+	//var lerp3 = lerp(lerp1, lerp2, (y-minY)/frequency);
+	
+	var lerp1 = lerp(dotGradient1, dotGradient2, smoothstep(minX, maxX, x));
+	var lerp2 = lerp(dotGradient3, dotGradient4, smoothstep(minX, maxX, x));
+	var lerp3 = lerp(lerp1, lerp2, smoothstep(minY, maxY, y));
 	
 	return lerp3;
 }
  
-
-var amplitude = 20; 
 function normalPlane(p1, p2, p3) {
 	
-	p1[1] *= amplitude;
-	p2[1] *= amplitude;
-	p3[1] *= amplitude;
+	p1[1] *= options.amplitude;
+	p2[1] *= options.amplitude;
+	p3[1] *= options.amplitude;
 	
 	var normal = vec3.create();
 	var l1 = vec3.create();
@@ -161,10 +198,7 @@ function normalPlane(p1, p2, p3) {
 
 var gradients = [];
 
-function createPlane(rows, cols) {
-
-	var frequency = 10;
-	var seed = 100;
+function createPlane(rows, cols, frequency, seed) {
 
 	var vertices = [];
 	var normals = [];
@@ -193,7 +227,7 @@ function createPlane(rows, cols) {
 			randoms.push(random2);
 			randoms.push(random3);
 			
-			normal = normalPlane([x+1, random2, y], [x, random1, y], [x, random3, y+1]);
+			normal = normalPlane([x+1, random1, y], [x, random2, y], [x, random3, y+1]);
 			
 			for(var i = 0; i<3; i++) {
 				normals.push(normal[0], normal[1], normal[2]);
@@ -273,7 +307,7 @@ function render() {
 	//create MV matrix
 	mat4.identity(mvMatrix);
 	mat4.translate(mvMatrix, mvMatrix, [0, -10, -40]);
-	mat4.scale(mvMatrix, mvMatrix, [3.0, 3.0, 3.0]);
+	mat4.scale(mvMatrix, mvMatrix, [options.scale, options.scale, options.scale]);
 	
 	setMatrixUniforms();
 	
@@ -305,7 +339,7 @@ function render() {
 	gl.uniform3f(shaderProgram.materialDiffuseColorUniform, 0.0, 0.8, 0.1);
 	gl.uniform3f(shaderProgram.materialSpecularColorUniform, 0.8, 0.8, 0.8);
 	gl.uniform1f(shaderProgram.materialShininessUniform, 20.0);
-	gl.uniform1f(shaderProgram.amplitudeUniform, amplitude);
+	gl.uniform1f(shaderProgram.amplitudeUniform, options.amplitude);
 	
 	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, planeVertexIndexBuffer);
 	gl.drawElements(gl.TRIANGLES, planeVertexIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
@@ -501,7 +535,7 @@ function start() {
 	
 	initGL(canvas);
 	initShaders();
-	createPlane(100, 100);
+	createPlane(options.rows, options.cols, options.frequency, options.seed);
 	
 	gl.clearColor(0.0, 0.3, 0.7, 1.0);
 	gl.enable(gl.DEPTH_TEST);
