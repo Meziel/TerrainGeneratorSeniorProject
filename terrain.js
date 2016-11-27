@@ -15,8 +15,8 @@ var options = new Options();
 
 window.onload = function() {
 	var gui = new dat.GUI();
-	gui.add(options, 'rows', 0, 200);
-	gui.add(options, 'cols', 0, 200);
+	gui.add(options, 'rows', 0, 1000);
+	gui.add(options, 'cols', 0, 1000);
 	gui.add(options, 'frequency', 0, 100);
 	gui.add(options, 'seed', 0, 999999);
 	gui.add(options, 'recalculate');
@@ -178,6 +178,23 @@ function noise(x, y, frequency, seed) {
 	
 	return lerp3;
 }
+
+function fractalNoise(x, y, frequency, octaves, seed) {
+	
+	var sum = 0;
+	var amplitude = 1;
+	var maxValue = 0;
+	
+	for(var i=1; i<=octaves; i++) {
+		sum += noise(x, y, frequency, seed) * amplitude;
+		maxValue += amplitude;
+		amplitude /= 2;
+		frequency /= 2;
+	}
+	
+	return sum/octaves;
+	
+}
  
 function normalPlane(p1, p2, p3) {
 	
@@ -197,13 +214,16 @@ function normalPlane(p1, p2, p3) {
 }
 
 var gradients = [];
+var numVertices;
 
 function createPlane(rows, cols, frequency, seed) {
 
 	var vertices = [];
 	var normals = [];
 	var randoms = [];
-	var indices = [];
+	
+	numVertices = 0
+	var octaves = 8;
 
 	//create vertices
 	var count=0;
@@ -215,9 +235,9 @@ function createPlane(rows, cols, frequency, seed) {
 			var random3;
 			var normal;
 			
-			random1 = noise(x+1, y, frequency, seed);
-			random2 = noise(x, y, frequency, seed);
-			random3 = noise(x, y+1, frequency, seed);
+			random1 = fractalNoise(x+1, y, frequency, octaves, seed);
+			random2 = fractalNoise(x, y, frequency, octaves, seed);
+			random3 = fractalNoise(x, y+1, frequency, octaves, seed);
 	
 			vertices.push((x+1)-(cols/2), 0.0, y-(rows/2));
 			vertices.push(x-(cols/2), 0.0, y-(rows/2));
@@ -235,9 +255,9 @@ function createPlane(rows, cols, frequency, seed) {
 			
 			//second set of triangles
 			
-			random1 = noise(x+1, y, frequency, seed);
-			random2 = noise(x, y+1, frequency, seed);
-			random3 = noise(x+1, y+1, frequency, seed);
+			random1 = fractalNoise(x+1, y, frequency, octaves, seed);
+			random2 = fractalNoise(x, y+1, frequency, octaves, seed);
+			random3 = fractalNoise(x+1, y+1, frequency, octaves, seed);
 			
 			vertices.push((x+1)-(cols/2), 0.0, y-(rows/2));
 			vertices.push(x-(cols/2), 0.0, (y+1)-(rows/2));
@@ -253,16 +273,10 @@ function createPlane(rows, cols, frequency, seed) {
 				normals.push(normal[0], normal[1], normal[2]);
 			}
 			
-			//create indices
-			indices.push(count++);
-			indices.push(count++);
-			indices.push(count++);
-			indices.push(count++);
-			indices.push(count++);
-			indices.push(count++);
+			numVertices+=6;
 		}
 	}
-
+	
 	//normals
 	planeVertexNormalBuffer = gl.createBuffer();
 	gl.bindBuffer(gl.ARRAY_BUFFER, planeVertexNormalBuffer);
@@ -283,13 +297,6 @@ function createPlane(rows, cols, frequency, seed) {
 	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(randoms), gl.STATIC_DRAW);
 	planeRandomBuffer.itemSize = 1;
 	planeRandomBuffer.numItems = vertices.length/planeRandomBuffer.itemSize;
-	
-	//indices
-	planeVertexIndexBuffer = gl.createBuffer();
-	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, planeVertexIndexBuffer);
-	gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
-	planeVertexIndexBuffer.itemSize = 1;
-	planeVertexIndexBuffer.numItems = indices.length/planeVertexIndexBuffer.itemSize;
 }
 var time = 0;
 function render() {
@@ -334,7 +341,7 @@ function render() {
 	
 	//set uniforms
 	gl.uniform3f(shaderProgram.pointLightingLocationUniform, Math.cos(sunRotation), Math.sin(sunRotation), 0);
-	sunRotation -= 0.001;
+	//sunRotation -= 0.001;
     gl.uniform3f(shaderProgram.ambientColorUniform, 0.2, 0.2, 0.2);
 	gl.uniform3f(shaderProgram.materialDiffuseColorUniform, 0.0, 0.8, 0.1);
 	gl.uniform3f(shaderProgram.materialSpecularColorUniform, 0.8, 0.8, 0.8);
@@ -342,10 +349,10 @@ function render() {
 	gl.uniform1f(shaderProgram.amplitudeUniform, options.amplitude);
 	
 	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, planeVertexIndexBuffer);
-	gl.drawElements(gl.TRIANGLES, planeVertexIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
+	gl.drawArrays(gl.TRIANGLES, 0, numVertices);
 }
 
-var sunRotation = 0.0;
+var sunRotation = -90.0;
 
 function tick() {
 	requestAnimFrame(tick);
