@@ -1,11 +1,11 @@
 var gl;
 
 var Options = function() {
-	this.rows = 100;
-	this.cols = 100;
+	this.rows = 50;
+	this.cols = 50;
 	this.amplitude = 20;
 	this.frequency = 10;
-	this.scale = 0.5;
+	this.scale = 1.0;
 	this.seed = 1.0;
 	this.recalculate = function() {
 	  createPlane(this.rows, this.cols, this.frequency, this.seed);
@@ -235,9 +235,9 @@ function createPlane(rows, cols, frequency, seed) {
 			var random3;
 			var normal;
 			
-			random1 = fractalNoise(x+1, y, frequency, octaves, seed);
-			random2 = fractalNoise(x, y, frequency, octaves, seed);
-			random3 = fractalNoise(x, y+1, frequency, octaves, seed);
+			random1 = fractalNoise(x+1+cameraX, y+cameraZ, frequency, octaves, seed);
+			random2 = fractalNoise(x+cameraX, y+cameraZ, frequency, octaves, seed);
+			random3 = fractalNoise(x+cameraX, y+1+cameraZ, frequency, octaves, seed);
 	
 			vertices.push((x+1)-(cols/2), 0.0, y-(rows/2));
 			vertices.push(x-(cols/2), 0.0, y-(rows/2));
@@ -255,9 +255,9 @@ function createPlane(rows, cols, frequency, seed) {
 			
 			//second set of triangles
 			
-			random1 = fractalNoise(x+1, y, frequency, octaves, seed);
-			random2 = fractalNoise(x, y+1, frequency, octaves, seed);
-			random3 = fractalNoise(x+1, y+1, frequency, octaves, seed);
+			random1 = fractalNoise(x+1+cameraX, y+cameraZ, frequency, octaves, seed);
+			random2 = fractalNoise(x+cameraX, y+1+cameraZ, frequency, octaves, seed);
+			random3 = fractalNoise(x+1+cameraX, y+1+cameraZ, frequency, octaves, seed);
 			
 			vertices.push((x+1)-(cols/2), 0.0, y-(rows/2));
 			vertices.push(x-(cols/2), 0.0, (y+1)-(rows/2));
@@ -313,7 +313,7 @@ function render() {
 	
 	//create MV matrix
 	mat4.identity(mvMatrix);
-	mat4.translate(mvMatrix, mvMatrix, [0, -10, -40]);
+	mat4.translate(mvMatrix, mvMatrix, [0, -10, 0]);
 	mat4.scale(mvMatrix, mvMatrix, [options.scale, options.scale, options.scale]);
 	
 	setMatrixUniforms();
@@ -357,20 +357,26 @@ var sunRotation = -90.0;
 function tick() {
 	requestAnimFrame(tick);
 	
+	var changed = false;
+	
 	if (movingForward) {
 		cameraZ--;
+		changed = true;
 	}
 	
 	if (movingBackward) {
 		cameraZ++;
+		changed = true;
 	}
 	
 	if (movingRight) {
 		cameraX++;
+		changed = true;
 	}
 	
 	if (movingLeft) {
 		cameraX--;
+		changed = true;
 	}
 	
 	if(lookingUp) {
@@ -387,6 +393,10 @@ function tick() {
 	
 	if(lookingLeft) {
 		cameraRY-=0.1;
+	}
+	
+	if(changed) {
+		createPlane(options.rows, options.cols, options.frequency, options.seed);
 	}
 	
 	render();
@@ -519,7 +529,7 @@ function lookAt(position, target) {
 	
 	var camera = mat4.create();
 	//mat4.rotate(camera, camera, glMatrix.toRadian(90), [1, 0, 0]);
-	mat4.translate(camera, camera, [-position[0], -position[1], -position[2]]);+
+	//mat4.translate(camera, camera, [-position[0], -position[1], -position[2]]);+
 	mat4.rotate(camera, camera, glMatrix.toRadian(cameraRX*-5.0), [1, 0, 0]);
 	mat4.rotate(camera, camera, glMatrix.toRadian(cameraRY*20.0), [0, 1, 0]);
 	mat4.rotate(camera, camera, glMatrix.toRadian(cameraRZ*-20.0), [0, 0, 1]);
